@@ -136,3 +136,68 @@ func TestTarDotDotRejected(t *testing.T) {
 		t.Errorf("dot-dot tar entry should be rejected, got %v", err)
 	}
 }
+
+func TestExtractTreeZipPreservesLayout(t *testing.T) {
+	archive := makeZip(t, map[string]string{
+		"pgsql/bin/initdb.exe": "init",
+		"pgsql/bin/postgres.exe": "server",
+		"pgsql/share/postgresql.conf": "config",
+		"README":                      "docs",
+	})
+	dest := t.TempDir()
+	if err := ExtractTree(archive, dest); err != nil {
+		t.Fatal(err)
+	}
+	for rel, want := range map[string]string{
+		"pgsql/bin/initdb.exe":        "init",
+		"pgsql/bin/postgres.exe":      "server",
+		"pgsql/share/postgresql.conf": "config",
+		"README":                      "docs",
+	} {
+		got, err := os.ReadFile(filepath.Join(dest, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		if string(got) != want {
+			t.Errorf("%s = %q, want %q", rel, got, want)
+		}
+	}
+}
+
+func TestExtractTreeTarGzPreservesLayout(t *testing.T) {
+	archive := makeTarGz(t, func(tw *tar.Writer) {
+		tarFile(t, tw, "pgsql/bin/initdb", "init")
+		tarFile(t, tw, "pgsql/share/x.conf", "config")
+	})
+	dest := t.TempDir()
+	if err := ExtractTree(archive, dest); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dest, filepath.FromSlash("pgsql/bin/initdb")))
+	if err != nil || string(got) != "init" {
+		t.Errorf("initdb = %q err=%v", got, err)
+	}
+}
+
+func TestExtractTreeZipSlipRejected(t *testing.T) {
+	for _, evil := range []string{"../evil", "..\\evil", "/abs/evil", "sub/../../evil"} {
+		archive := makeZip(t, map[string]string{evil: "boom", "ok": "fine"})
+		if err := ExtractTree(archive, t.TempDir()); err == nil {
+			t.Errorf("entry %q should be rejected", evil)
+		}
+	}
+}
+
+func TestExtractTreeTarSymlinkRejected(t *testing.T) {
+	archive := makeTarGz(t, func(tw *tar.Writer) {
+		if err := tw.WriteHeader(&tar.Header{
+			Name: "link", Typeflag: tar.TypeSymlink, Linkname: "/etc/passwd",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if err := ExtractTree(archive, t.TempDir()); err == nil ||
+		!strings.Contains(err.Error(), "link") {
+		t.Errorf("symlink entry should be rejected, got %v", err)
+	}
+}
