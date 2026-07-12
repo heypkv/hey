@@ -1,2 +1,12 @@
 .coop/logs/
 .coop/tmp/
+.cnos/.private
+.cnos/env/.env
+.cnos/env/.env.*
+!.cnos/env/.env.example
+!.cnos/env/.env.*.example
+.cnos/workspaces/*/.private
+.cnos/workspaces/*/env/.env
+.cnos/workspaces/*/env/.env.*
+!.cnos/workspaces/*/env/.env.example
+!.cnos/workspaces/*/env/.env.*.example

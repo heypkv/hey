@@ -1,0 +1,16 @@
+version: 1
+project:
+  name: hey
+workspaces:
+  default: base
+  global:
+    enabled: false
+    allowWrite: false
+  items:
+    base: {}
+profiles:
+  default: local
+envMapping:
+  convention: SCREAMING_SNAKE
+public:
+  promote: []
