@@ -57,3 +57,20 @@ func LogsDir() (string, error) { return subdir("logs") }
 
 // StateDir returns ~/.hey/state, creating it if needed.
 func StateDir() (string, error) { return subdir("state") }
+
+// SvcDir returns ~/.hey/svc, creating it if needed. Service instances live
+// under it; this state is separate from app state (~/.hey/state).
+func SvcDir() (string, error) { return subdir("svc") }
+
+// InstanceDir returns ~/.hey/svc/<name>, creating it if needed.
+func InstanceDir(name string) (string, error) {
+	svc, err := SvcDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(svc, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create %s: %w", dir, err)
+	}
+	return dir, nil
+}

@@ -3,7 +3,7 @@ id: TASK-POST-SERV-PACK-HEY-1
 short_id: bb23ab8197e6
 title: postgres service pack + hey svc up
 type: feature
-status: todo
+status: in_review
 created: 2026-07-12
 updated: 2026-07-12
 aliases: []

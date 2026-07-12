@@ -3,7 +3,7 @@ id: TASK-SVC-CLI-LS-STOP-STAR-1
 short_id: cdbb0a5def65
 title: "svc CLI: ls/stop/start/logs/rm"
 type: feature
-status: todo
+status: in_review
 created: 2026-07-12
 updated: 2026-07-12
 aliases: []

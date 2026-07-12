@@ -3,7 +3,7 @@ id: TASK-PACK-MANI-V0-SPEC-AR-1
 short_id: 4a257768754e
 title: Pack manifest v0 spec + archive-exec driver
 type: feature
-status: todo
+status: in_review
 created: 2026-07-12
 updated: 2026-07-12
 aliases: []

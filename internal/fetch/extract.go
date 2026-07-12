@@ -33,6 +33,142 @@ func ExtractBinary(archivePath, binaryName, destDir string) error {
 	return nil
 }
 
+// ExtractTree extracts every entry of the archive at archivePath into destDir,
+// preserving the archive's directory structure and executable bits. It applies
+// the same defenses as ExtractBinary — zip-slip paths, symlinks and hardlinks
+// are rejected outright — but keeps the whole tree, which service packs need
+// (a database ships bin/, lib/ and share/ together, not one file).
+func ExtractTree(archivePath, destDir string) error {
+	if strings.HasSuffix(archivePath, ".zip") || isZip(archivePath) {
+		return extractTreeZip(archivePath, destDir)
+	}
+	return extractTreeTarGz(archivePath, destDir)
+}
+
+// safeJoin resolves name under destDir and confirms the result stays within
+// destDir even after cleaning — a second line of defense behind checkEntryName.
+func safeJoin(destDir, name string) (string, error) {
+	if err := checkEntryName(name); err != nil {
+		return "", err
+	}
+	clean := filepath.FromSlash(path.Clean(strings.ReplaceAll(name, `\`, "/")))
+	dst := filepath.Join(destDir, clean)
+	rel, err := filepath.Rel(destDir, dst)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("archive entry %q escapes the destination", name)
+	}
+	return dst, nil
+}
+
+func extractTreeZip(archivePath, destDir string) error {
+	r, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return fmt.Errorf("open zip: %w", err)
+	}
+	defer r.Close()
+	// Validate every entry up front so a hostile archive fails before we write
+	// anything to disk.
+	for _, f := range r.File {
+		if _, err := safeJoin(destDir, f.Name); err != nil {
+			return err
+		}
+		if f.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("archive entry %q is a symlink; refusing", f.Name)
+		}
+	}
+	for _, f := range r.File {
+		dst, err := safeJoin(destDir, f.Name)
+		if err != nil {
+			return err
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		err = writeTreeFile(rc, dst, f.Mode())
+		rc.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func extractTreeTarGz(archivePath, destDir string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("open tar.gz: %w", err)
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		dst, err := safeJoin(destDir, hdr.Name)
+		if err != nil {
+			return err
+		}
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return err
+			}
+		case tar.TypeSymlink, tar.TypeLink:
+			return fmt.Errorf("archive entry %q is a link; refusing", hdr.Name)
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return err
+			}
+			if err := writeTreeFile(tr, dst, hdr.FileInfo().Mode()); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// writeTreeFile writes src to dst, keeping only the executable bit from the
+// archive (any exec bit → 0755, otherwise 0644) so a hostile mode can't grant
+// setuid or world-write.
+func writeTreeFile(src io.Reader, dst string, mode os.FileMode) error {
+	perm := os.FileMode(0o644)
+	if mode&0o111 != 0 {
+		perm = 0o755
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, io.LimitReader(src, maxArchiveBytes))
+	closeErr := out.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		os.Remove(dst)
+		return fmt.Errorf("write %s: %w", dst, err)
+	}
+	return nil
+}
+
 func isZip(p string) bool {
 	f, err := os.Open(p)
 	if err != nil {
