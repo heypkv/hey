@@ -1,5 +1,10 @@
 .coop/logs/
 .coop/tmp/
+
+# build artifacts
+/hey
+/hey.exe
+/dist/
 .cnos/.private
 .cnos/env/.env
 .cnos/env/.env.*

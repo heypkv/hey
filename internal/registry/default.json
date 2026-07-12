@@ -1,0 +1,29 @@
+{
+  "hey_registry": 0,
+  "apps": {
+    "guten": {
+      "description": "guten templating engine CLI (kitsy.ai)",
+      "source": {
+        "type": "github-release",
+        "repo": "kitsyai/guten",
+        "tag_prefix": "cli/",
+        "asset_template": "guten_{version}_{os}_{arch}.{ext}",
+        "checksums_asset": "checksums.txt",
+        "binary": "guten"
+      },
+      "ui_commands": []
+    },
+    "djin": {
+      "description": "djin compliance suite (heypkv.ai)",
+      "source": {
+        "type": "github-release",
+        "repo": "heypkv/djin",
+        "tag_prefix": "",
+        "asset_template": "djin_{version}_{os}_{arch}.{ext}",
+        "checksums_asset": "checksums.txt",
+        "binary": "djin"
+      },
+      "ui_commands": ["ui"]
+    }
+  }
+}
