@@ -11,7 +11,7 @@
         "checksums_asset": "checksums.txt",
         "binary": "guten"
       },
-      "ui_commands": []
+      "ui_commands": ["ui"]
     },
     "djin": {
       "description": "djin compliance suite (heypkv.ai)",

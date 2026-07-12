@@ -24,8 +24,8 @@ func TestEmbeddedDefaultParses(t *testing.T) {
 	if !r.Apps["djin"].IsUICommand("ui") {
 		t.Error("djin should list ui as a UI command")
 	}
-	if r.Apps["guten"].IsUICommand("ui") {
-		t.Error("guten should not have UI commands yet")
+	if !r.Apps["guten"].IsUICommand("ui") {
+		t.Error("guten should list ui as a UI command (since guten cli/v0.3.0)")
 	}
 }
 
