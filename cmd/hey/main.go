@@ -25,6 +25,8 @@ Usage:
   hey stop <app>                     stop a running UI app
   hey svc <up|ls|stop|start|logs|conn|rm>  manage local services
   hey mobile <devices|push>          nearby-device install (adb)
+  hey do <intent> [--param k=v]      run a plan (orchestrate tools for a task)
+  hey plan <list|show <intent>>      browse/inspect plans
   hey open <ref>                     open a link artifact (e.g. TestFlight)
   hey which <app>                    print path of the installed binary
   hey cache clean [<app>]            remove cached binaries and bundles
@@ -105,6 +107,10 @@ func main() {
 		err = cmdRemove(args[1:])
 	case "self":
 		err = cmdSelf(args[1:])
+	case "do":
+		err = cmdDo(args[1:])
+	case "plan":
+		err = cmdPlan(args[1:])
 	case "uninstall":
 		err = cmdUninstall(args[1:])
 	default:

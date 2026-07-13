@@ -52,13 +52,16 @@ Status: **draft**. Nothing implemented yet — this is the contract to agree on.
 - `{ "app": "@scope/id" }` — a **registry tool**: resolved, signature-verified,
   and installed on demand through the exact trust pipeline
   ([trust-and-signing-v0.md](trust-and-signing-v0.md)). Fully trusted.
-- `{ "system": "nmap" }` — a **detected system tool** already on the machine.
-  hey **never auto-installs** system packages (no silent `apt`/`brew`). If it's
-  missing, hey says so and stops with an install hint. Using one is always
-  `sensitive` → consent required, because hey can't vouch for it.
+- `{ "system": "nmap" }` — a **system tool**. hey looks it up on `PATH`. If it's
+  missing, hey **offers to install it via the OS package manager**
+  (`apt`/`dnf`/`pacman`/`brew`/`winget`) behind an explicit, shown consent
+  prompt — it never installs silently, and never without you seeing the exact
+  command. Using a system tool is always `sensitive` → consent required, because
+  hey can't cryptographically vouch for it the way it does a registry tool.
 
-That split is deliberate: hey vouches for what it installs (verified), and asks
-permission for what it merely borrows.
+That split is deliberate: hey **verifies** what it installs from the registry,
+and **asks permission** for anything it borrows from the OS (installing it or
+running it).
 
 ### Templating & data flow
 
@@ -104,13 +107,15 @@ So a plan is only as trusted as its source:
 The AI planner (paid) is bound by the same rules: it can only reference tools the
 user's registry trusts, and its plan runs through the same consent gates.
 
-## Open questions for review
+## Decisions (locked)
 
-1. **Plan trust** — reuse the manifest signing/quorum for plans verbatim (my
-   recommendation), or a separate mechanism?
-2. **System tools** — detect-only with consent (my recommendation), or ever
-   allow hey to install a system tool via a package manager behind a big prompt?
-3. **CLI verb** — `hey do <intent>` (natural) vs `hey plan run <intent>`?
-4. **Scope of v0** — I'd build: the schema, a deterministic executor,
-   registry+system tool resolution, consent gates, `hey do/plan list/plan show`,
-   and 1–2 real seed plans. AI planning and the fetchable plan library come after.
+1. **Plan trust** — reuse the manifest signing/quorum verbatim: signed-scope
+   plans run without a trust prompt; direct-URL/unsigned plans are untrusted
+   (`--allow-untrusted`); every `sensitive` step still shows-and-asks.
+2. **System tools** — hey may **offer to install a missing one via the OS
+   package manager** behind an explicit shown prompt; it never installs silently.
+3. **CLI** — `hey do <intent>`; plus `hey plan list` / `hey plan show <intent>`.
+4. **v0 scope** — schema + deterministic executor + registry/system tool
+   resolution (incl. the package-manager install offer) + consent gates +
+   `hey do/plan list/plan show` + embedded seed plans. AI planning and the
+   fetchable, signed plan library come after.

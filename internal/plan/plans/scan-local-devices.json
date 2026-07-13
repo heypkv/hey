@@ -1,0 +1,18 @@
+{
+  "hey_plan": 1,
+  "intent": "scan-local-devices",
+  "description": "Discover live hosts on a local subnet with nmap.",
+  "inputs": [
+    { "name": "subnet", "prompt": "Subnet to scan (CIDR)", "default": "192.168.1.0/24" }
+  ],
+  "steps": [
+    {
+      "id": "scan",
+      "tool": { "system": "nmap" },
+      "sensitive": true,
+      "run": ["-sn", "{{ inputs.subnet }}"],
+      "capture": "text"
+    }
+  ],
+  "output": "scan"
+}

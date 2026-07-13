@@ -1,0 +1,18 @@
+{
+  "hey_plan": 1,
+  "intent": "make-invoice",
+  "description": "Render invoices from a data file using guten's invoice template.",
+  "inputs": [
+    { "name": "rows", "prompt": "Path to JSONL/CSV rows (prefix with @, e.g. @rows.jsonl)" },
+    { "name": "out", "prompt": "Output directory", "default": "invoices" }
+  ],
+  "steps": [
+    {
+      "id": "render",
+      "tool": { "app": "guten" },
+      "run": ["batch", "--lib", "invoice", "-d", "{{ inputs.rows }}", "--name", "{{ invoice.number }}.pdf", "-o", "{{ inputs.out }}"],
+      "capture": "none"
+    }
+  ],
+  "output": "render"
+}
