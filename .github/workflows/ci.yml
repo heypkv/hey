@@ -8,9 +8,16 @@ on:
 permissions:
   contents: read
 
+# Rapid pushes supersede in-progress runs cleanly instead of competing for
+# scarce runners (which shows up as "runner received a shutdown signal").
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
+      fail-fast: false # one leg's infra hiccup shouldn't cancel the others
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
@@ -26,6 +33,7 @@ jobs:
     # Real-network + process-lifecycle tests; main only for rate-limit hygiene.
     if: github.ref == 'refs/heads/main'
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
