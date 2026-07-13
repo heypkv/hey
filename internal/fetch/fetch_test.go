@@ -53,9 +53,9 @@ func TestDownloadComputesSHA(t *testing.T) {
 		w.Write(payload)
 	}))
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client() // trusts the test TLS cert; URL is https://
-	defer func() { httpClient = oldClient }()
+	oldClient := Client
+	Client = srv.Client() // trusts the test TLS cert; URL is https://
+	defer func() { Client = oldClient }()
 
 	dir := t.TempDir()
 	path, sha, err := Download(srv.URL+"/x.zip", dir)

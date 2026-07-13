@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/heypkv/hey/internal/browser"
 	"github.com/heypkv/hey/internal/contract"
+	"github.com/heypkv/hey/internal/deploy"
 	"github.com/heypkv/hey/internal/home"
 	"github.com/heypkv/hey/internal/proc"
 	"github.com/heypkv/hey/internal/state"
@@ -24,6 +26,7 @@ type runOpts struct {
 // to the app.
 func cmdRun(args []string) error {
 	o := runOpts{timeout: 30 * time.Second}
+	d := deployOpts{timeout: 30 * time.Second}
 	i := 0
 	for ; i < len(args); i++ {
 		switch args[i] {
@@ -35,16 +38,31 @@ func cmdRun(args []string) error {
 			o.registryOverride = args[i]
 		case "--no-browser":
 			o.noBrowser = true
+		case "--temp":
+			d.temp = true
+		case "--channel":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--channel needs a value")
+			}
+			i++
+			d.channel = args[i]
+		case "--location":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--location needs a value")
+			}
+			i++
+			d.location = args[i]
 		case "--timeout":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--timeout needs a value (e.g. 45s)")
 			}
 			i++
-			d, err := time.ParseDuration(args[i])
+			dur, err := time.ParseDuration(args[i])
 			if err != nil {
 				return fmt.Errorf("bad --timeout: %w", err)
 			}
-			o.timeout = d
+			o.timeout = dur
+			d.timeout = dur
 		default:
 			goto appName
 		}
@@ -54,6 +72,18 @@ appName:
 		usage()
 		return exitCodeError(2)
 	}
+
+	// Route deploy refs (@scope/id or a direct https manifest URL) to the
+	// hey.deploy.v1 install/run path; bare names stay on the legacy
+	// github-release path so guten/djin keep working unchanged.
+	if ref, err := deploy.ParseRef(args[i]); err == nil && ref.Kind != deploy.RefAppName {
+		d.registryOverride = o.registryOverride
+		d.noBrowser = o.noBrowser
+		return runDeployRef(ref, args[i+1:], d)
+	} else if err != nil && (strings.HasPrefix(args[i], "@") || strings.HasPrefix(args[i], "http")) {
+		return err
+	}
+
 	name, pinned := splitAppRef(args[i])
 	appArgs := args[i+1:]
 
@@ -172,11 +202,15 @@ func runUI(name, version, binPath string, appArgs []string, o runOpts) error {
 	return nil
 }
 
+// browserOpen is the browser launcher, a var so tests can capture the URL
+// instead of spawning a real browser.
+var browserOpen = browser.Open
+
 func openBrowser(url string, skip bool) {
 	if skip {
 		return
 	}
-	if err := browser.Open(url); err != nil {
+	if err := browserOpen(url); err != nil {
 		fmt.Fprintf(os.Stderr, "hey: could not open browser (%v) — open %s yourself\n", err, url)
 	}
 }

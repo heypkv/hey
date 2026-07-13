@@ -55,6 +55,39 @@ func AppDir(app string) (string, error) {
 // LogsDir returns ~/.hey/logs, creating it if needed.
 func LogsDir() (string, error) { return subdir("logs") }
 
+// AppsDir returns ~/.hey/apps, creating it if needed. Deployed bundles (the
+// hey.deploy.v1 track) live here, keyed by manifest id then version; this is
+// separate from ~/.hey/bin, which holds github-release single binaries.
+func AppsDir() (string, error) { return subdir("apps") }
+
+// DeployAppDir returns ~/.hey/apps/<id>/<version>, creating it if needed.
+func DeployAppDir(id, version string) (string, error) {
+	apps, err := AppsDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(apps, id, version)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create %s: %w", dir, err)
+	}
+	return dir, nil
+}
+
+// TempInstallDir returns a fresh throwaway install directory under
+// ~/.hey/tmp (same volume as ~/.hey so extraction and renames stay cheap). The
+// caller owns it and must remove it — `hey run --temp` deletes it on exit.
+func TempInstallDir() (string, error) {
+	root, err := subdir("tmp")
+	if err != nil {
+		return "", err
+	}
+	dir, err := os.MkdirTemp(root, "run-")
+	if err != nil {
+		return "", fmt.Errorf("create temp install dir: %w", err)
+	}
+	return dir, nil
+}
+
 // StateDir returns ~/.hey/state, creating it if needed.
 func StateDir() (string, error) { return subdir("state") }
 

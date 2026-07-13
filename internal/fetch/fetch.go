@@ -25,13 +25,17 @@ const (
 // where signature checks will plug in.
 type SigSpec struct{}
 
-var httpClient = &http.Client{Timeout: 10 * time.Minute}
+// Client is the HTTP client used for all downloads. It is a package var (not a
+// const literal) so tests can point it at an httptest TLS server, whose
+// self-signed certificate the default client would reject; production keeps the
+// long timeout for large artifacts.
+var Client = &http.Client{Timeout: 10 * time.Minute}
 
 func get(url string, cap int64) (io.ReadCloser, error) {
 	if !strings.HasPrefix(url, "https://") {
 		return nil, fmt.Errorf("refusing non-https download: %s", url)
 	}
-	resp, err := httpClient.Get(url)
+	resp, err := Client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", url, err)
 	}
