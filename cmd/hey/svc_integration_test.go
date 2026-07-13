@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,7 +55,12 @@ func TestIntegrationPostgresE2E(t *testing.T) {
 	t.Setenv("HEY_HOME", heyHome)
 
 	// up: provision (download+verify+extract) + initdb + start + ready.
+	// Skip (not fail) where the pack ships no artifact for this platform —
+	// e.g. linux, since EDB no longer publishes community Linux tarballs.
 	if err := cmdSvc([]string{"up", "postgres"}); err != nil {
+		if strings.Contains(err.Error(), "no artifact for") {
+			t.Skipf("postgres pack has no artifact for this platform: %v", err)
+		}
 		t.Fatalf("svc up postgres: %v", err)
 	}
 	svcDir := filepath.Join(heyHome, "svc")
