@@ -77,7 +77,10 @@ func downloadable(kind string) bool {
 	}
 }
 
-var manifestClient = &http.Client{Timeout: 30 * time.Second}
+// Client is the HTTP client used to fetch manifests. It is a package var so
+// tests can point it at an httptest TLS server (whose self-signed cert the
+// default client rejects).
+var Client = &http.Client{Timeout: 30 * time.Second}
 
 // Fetch downloads and parses the manifest at an https URL.
 func Fetch(url string) (*Manifest, error) {
@@ -87,7 +90,7 @@ func Fetch(url string) (*Manifest, error) {
 	if !strings.HasPrefix(url, "https://") {
 		return nil, fmt.Errorf("manifest URL must be https: %s", url)
 	}
-	resp, err := manifestClient.Get(url)
+	resp, err := Client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetch manifest %s: %w", url, err)
 	}

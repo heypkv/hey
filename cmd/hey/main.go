@@ -13,22 +13,30 @@ var version = "0.1.0-dev" // overridden at release via -X main.version
 const usageText = `hey — fetch, verify and run apps
 
 Usage:
-  hey <app>[@version] [args...]      run an app (fetched on demand)
-  hey run <app>[@version] [args...]  explicit run form
-  hey install <app>[@version]        fetch + verify without running
+  hey <ref>[@version] [args...]      run an app (fetched on demand)
+  hey run <ref> [args...]            explicit run form
+  hey install <ref>                  fetch + verify without running
   hey update [<app>]                 re-resolve latest and fetch if newer
-  hey ls                             list installed apps
+  hey ls                             list installed apps and bundles
   hey ps                             list running UI apps and services
   hey stop <app>                     stop a running UI app
   hey svc <up|ls|stop|start|logs|conn|rm>  manage local services
+  hey mobile <devices|push>          nearby-device install (adb)
+  hey open <ref>                     open a link artifact (e.g. TestFlight)
   hey which <app>                    print path of the installed binary
-  hey cache clean [<app>]            remove cached binaries
+  hey cache clean [<app>]            remove cached binaries and bundles
   hey version                        print hey's version
 
-Flags (before the app name):
+<ref> is an app name (guten), a scoped id (@heypkv/main), or a direct
+https manifest URL (https://…/app.json). See docs/deployment-manifest-v0.md.
+
+Flags (before the ref):
   --registry <path|https-url>  registry override (env HEY_REGISTRY)
   --no-browser                 don't open the browser after a UI start
   --timeout <dur>              UI startup handshake timeout (default 30s)
+  --channel <name>             deploy channel for @scope/id (default stable)
+  --temp                       run a bundle from a throwaway dir, delete on exit
+  --location <path>            install a bundle to a caller-chosen directory
 
 Environment:
   HEY_HOME      data directory (default ~/.hey)

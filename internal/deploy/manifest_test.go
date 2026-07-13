@@ -68,9 +68,9 @@ func TestFetchOverHTTPTest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	old := manifestClient
-	manifestClient = srv.Client()
-	defer func() { manifestClient = old }()
+	old := Client
+	Client = srv.Client()
+	defer func() { Client = old }()
 
 	m, err := Fetch(srv.URL) // srv.URL is https://127.0.0.1:port
 	if err != nil {

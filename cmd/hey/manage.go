@@ -5,18 +5,34 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
+	"github.com/heypkv/hey/internal/deploy"
 	"github.com/heypkv/hey/internal/home"
 )
 
 func cmdInstall(args []string) error {
-	registryOverride, rest, err := takeRegistryFlag(args)
+	registryOverride, channel, location, rest, err := takeInstallFlags(args)
 	if err != nil {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("usage: hey install <app>[@version]")
+		return fmt.Errorf("usage: hey install <ref> [--channel <c>] [--location <path>]")
 	}
+
+	// Deploy refs (@scope/id or a direct https manifest URL) install a
+	// hey.deploy.v1 bundle; bare names stay on the legacy github-release path.
+	if ref, rerr := deploy.ParseRef(rest[0]); rerr == nil && ref.Kind != deploy.RefAppName {
+		return installDeployRef(ref, deployOpts{
+			registryOverride: registryOverride,
+			channel:          channel,
+			location:         location,
+			timeout:          30 * time.Second,
+		})
+	} else if rerr != nil {
+		return rerr
+	}
+
 	name, pinned := splitAppRef(rest[0])
 	reg, err := loadRegistry(registryOverride)
 	if err != nil {
@@ -87,7 +103,8 @@ func cmdLs(args []string) error {
 		return fmt.Errorf("usage: hey ls")
 	}
 	names := installedApps()
-	if len(names) == 0 {
+	deployed := deployedApps()
+	if len(names) == 0 && len(deployed) == 0 {
 		fmt.Println("nothing installed yet — try `hey install <app>`")
 		return nil
 	}
@@ -101,6 +118,18 @@ func cmdLs(args []string) error {
 		fmt.Printf("%-12s current %-10s versions [%s]  %s\n",
 			name, cur, joinStrings(versions, ", "), filepath.Join(binDir, name))
 	}
+	if len(deployed) > 0 {
+		appsDir, err := home.AppsDir()
+		if err != nil {
+			return err
+		}
+		fmt.Println("\ndeployed bundles (hey.deploy.v1):")
+		for _, id := range deployed {
+			versions := deployedVersions(id)
+			fmt.Printf("%-12s versions [%s]  %s\n",
+				id, joinStrings(versions, ", "), filepath.Join(appsDir, id))
+		}
+	}
 	return nil
 }
 
@@ -111,24 +140,28 @@ func cmdWhich(args []string) error {
 	name, pinned := splitAppRef(args[0])
 	version := pinned
 	if version == "" {
-		var ok bool
-		if version, ok = currentVersion(name); !ok {
-			return fmt.Errorf("%s is not installed", name)
+		version, _ = currentVersion(name) // may be "" for a deploy-only id
+	}
+	if version != "" {
+		appDir, err := home.AppDir(name)
+		if err != nil {
+			return err
+		}
+		// Try both plain and .exe names so `which` works for any cached platform.
+		for _, candidate := range []string{name + ".exe", name} {
+			p := filepath.Join(appDir, version, candidate)
+			if _, err := os.Stat(p); err == nil {
+				fmt.Println(p)
+				return nil
+			}
 		}
 	}
-	appDir, err := home.AppDir(name)
-	if err != nil {
-		return err
+	// Fall back to a deployed bundle: print its install directory.
+	if dir, ok := deployedDir(name, pinned); ok {
+		fmt.Println(dir)
+		return nil
 	}
-	// Try both plain and .exe names so `which` works for any cached platform.
-	for _, candidate := range []string{name + ".exe", name} {
-		p := filepath.Join(appDir, version, candidate)
-		if _, err := os.Stat(p); err == nil {
-			fmt.Println(p)
-			return nil
-		}
-	}
-	return fmt.Errorf("%s %s is not installed", name, version)
+	return fmt.Errorf("%s is not installed", name)
 }
 
 func cmdCache(args []string) error {
@@ -136,6 +169,10 @@ func cmdCache(args []string) error {
 		return fmt.Errorf("usage: hey cache clean [<app>]")
 	}
 	binDir, err := home.BinDir()
+	if err != nil {
+		return err
+	}
+	appsDir, err := home.AppsDir()
 	if err != nil {
 		return err
 	}
@@ -147,15 +184,26 @@ func cmdCache(args []string) error {
 				return err
 			}
 		}
-		fmt.Printf("removed %d cached app(s)\n", len(names))
+		deployed := deployedApps()
+		for _, id := range deployed {
+			if err := os.RemoveAll(filepath.Join(appsDir, id)); err != nil {
+				return err
+			}
+		}
+		fmt.Printf("removed %d cached app(s) and %d deployed bundle(s)\n", len(names), len(deployed))
 	case 2:
 		name, _ := splitAppRef(args[1])
-		target := filepath.Join(binDir, name)
-		if _, err := os.Stat(target); err != nil {
-			return fmt.Errorf("%s is not installed", name)
+		removed := false
+		for _, target := range []string{filepath.Join(binDir, name), filepath.Join(appsDir, name)} {
+			if _, err := os.Stat(target); err == nil {
+				if err := os.RemoveAll(target); err != nil {
+					return err
+				}
+				removed = true
+			}
 		}
-		if err := os.RemoveAll(target); err != nil {
-			return err
+		if !removed {
+			return fmt.Errorf("%s is not installed", name)
 		}
 		fmt.Printf("removed cached %s\n", name)
 	default:
@@ -165,6 +213,31 @@ func cmdCache(args []string) error {
 }
 
 // --- helpers ---
+
+// takeInstallFlags parses the flags `hey install` understands (registry,
+// channel, location) and returns the remaining positional args.
+func takeInstallFlags(args []string) (override, channel, location string, rest []string, err error) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--registry", "--channel", "--location":
+			if i+1 >= len(args) {
+				return "", "", "", nil, fmt.Errorf("%s needs a value", args[i])
+			}
+			switch args[i] {
+			case "--registry":
+				override = args[i+1]
+			case "--channel":
+				channel = args[i+1]
+			case "--location":
+				location = args[i+1]
+			}
+			i++
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	return override, channel, location, rest, nil
+}
 
 func takeRegistryFlag(args []string) (override string, rest []string, err error) {
 	for i := 0; i < len(args); i++ {
@@ -217,6 +290,68 @@ func installedVersions(name string) []string {
 	}
 	sort.Strings(versions)
 	return versions
+}
+
+// deployedApps lists the ids of installed hey.deploy.v1 bundles (dirs under
+// ~/.hey/apps), sorted.
+func deployedApps() []string {
+	appsDir, err := home.AppsDir()
+	if err != nil {
+		return nil
+	}
+	entries, err := os.ReadDir(appsDir)
+	if err != nil {
+		return nil
+	}
+	var ids []string
+	for _, e := range entries {
+		if e.IsDir() {
+			ids = append(ids, e.Name())
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// deployedVersions lists the installed versions of a deployed bundle, sorted.
+func deployedVersions(id string) []string {
+	appsDir, err := home.AppsDir()
+	if err != nil {
+		return nil
+	}
+	entries, err := os.ReadDir(filepath.Join(appsDir, id))
+	if err != nil {
+		return nil
+	}
+	var versions []string
+	for _, e := range entries {
+		if e.IsDir() && e.Name()[0] != '.' {
+			versions = append(versions, e.Name())
+		}
+	}
+	sort.Strings(versions)
+	return versions
+}
+
+// deployedDir returns the install dir of a deployed bundle. With no version it
+// picks the highest (last sorted) installed version.
+func deployedDir(id, version string) (string, bool) {
+	appsDir, err := home.AppsDir()
+	if err != nil {
+		return "", false
+	}
+	if version == "" {
+		versions := deployedVersions(id)
+		if len(versions) == 0 {
+			return "", false
+		}
+		version = versions[len(versions)-1]
+	}
+	dir := filepath.Join(appsDir, id, version)
+	if _, err := os.Stat(dir); err != nil {
+		return "", false
+	}
+	return dir, true
 }
 
 func joinStrings(s []string, sep string) string {
