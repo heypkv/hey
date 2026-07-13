@@ -82,6 +82,10 @@ func main() {
 		err = cmdRun(args[1:])
 	case "svc":
 		err = cmdSvc(args[1:])
+	case "mobile":
+		err = cmdMobile(args[1:])
+	case "open":
+		err = cmdOpen(args[1:])
 	default:
 		err = cmdRun(args) // implicit run: hey <app> [args...]
 	}

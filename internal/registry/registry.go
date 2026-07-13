@@ -30,7 +30,7 @@ const maxRegistryBytes = 1 << 20 // 1 MB
 // Reserved lists subcommand names that can never be app names.
 var Reserved = []string{
 	"run", "install", "update", "ls", "ps", "stop", "which",
-	"cache", "version", "help", "svc",
+	"cache", "version", "help", "svc", "mobile", "open",
 }
 
 // Registry maps app names to their sources, and scopes to manifest-URL

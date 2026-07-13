@@ -202,11 +202,15 @@ func runUI(name, version, binPath string, appArgs []string, o runOpts) error {
 	return nil
 }
 
+// browserOpen is the browser launcher, a var so tests can capture the URL
+// instead of spawning a real browser.
+var browserOpen = browser.Open
+
 func openBrowser(url string, skip bool) {
 	if skip {
 		return
 	}
-	if err := browser.Open(url); err != nil {
+	if err := browserOpen(url); err != nil {
 		fmt.Fprintf(os.Stderr, "hey: could not open browser (%v) — open %s yourself\n", err, url)
 	}
 }
