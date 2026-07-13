@@ -16,4 +16,12 @@ acceptance:
   - fills the existing fetch.Verify SigSpec seam; tampered manifest or wrong key
     is rejected in tests
 tests_required: []
+comments:
+  - at: 2026-07-13T16:35:51.191Z
+    author: pkvsi
+    body: "DECISION (user): hey owns its signing end-to-end. Use Go stdlib
+      crypto/ed25519 (NOT external minisign/cosign), wrapped in hey's own
+      signature envelope + hey keygen/sign/verify. Per-scope pinned public keys.
+      No third-party tool dep so the protocol can evolve. Keep a seam for future
+      immutability/transparency-log (Merkle/blockchain-anchored) verification."
 ---

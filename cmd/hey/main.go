@@ -25,6 +25,7 @@ Usage:
   hey open <ref>                     open a link artifact (e.g. TestFlight)
   hey which <app>                    print path of the installed binary
   hey cache clean [<app>]            remove cached binaries and bundles
+  hey uninstall                      remove hey and everything it installed
   hey version                        print hey's version
 
 <ref> is an app name (guten), a scoped id (@heypkv/main), or a direct
@@ -86,6 +87,8 @@ func main() {
 		err = cmdMobile(args[1:])
 	case "open":
 		err = cmdOpen(args[1:])
+	case "uninstall":
+		err = cmdUninstall(args[1:])
 	default:
 		err = cmdRun(args) // implicit run: hey <app> [args...]
 	}
