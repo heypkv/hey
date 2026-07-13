@@ -1,0 +1,12 @@
+id: trust
+short_id: 83e43222993d
+name: trust
+capacity_profiles:
+  - backend_team
+constraints:
+  max_concurrent_tasks: 6
+  allowed_types:
+    - feature
+    - bug
+    - chore
+    - spike
