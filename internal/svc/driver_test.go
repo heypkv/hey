@@ -103,6 +103,13 @@ func syntheticPack(sha string) Pack {
 }
 
 func TestArchiveExecLifecycle(t *testing.T) {
+	// Heavy: builds a probe binary and spawns a detached (Setsid) process.
+	// Skipped under -short (CI) because the detached process reproducibly
+	// trips ephemeral Linux/macOS runners with a SIGTERM; run it locally with
+	// a plain `go test ./...`.
+	if testing.Short() {
+		t.Skip("process-spawning lifecycle test; run without -short")
+	}
 	archivePath, sha := buildProbeArchive(t)
 	pack := syntheticPack(sha)
 	svcDir := t.TempDir()

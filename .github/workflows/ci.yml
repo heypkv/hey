@@ -27,7 +27,9 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go vet ./...
-      - run: go test ./...
+      # -short skips heavy process-spawning tests (e.g. the svc lifecycle
+      # test) that trip ephemeral runners; they run locally and on demand.
+      - run: go test -short ./...
 
   integration:
     # Real-network + process-lifecycle tests; main only for rate-limit hygiene.
