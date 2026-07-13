@@ -1,0 +1,13 @@
+{
+  "hey_registry": 0,
+  "scopes": {
+    "heydemo": {
+      "manifest_url": "https://raw.githubusercontent.com/kitsyai/hey/main/examples/{id}.{channel}.deploy.json",
+      "default_channel": "stable",
+      "threshold": 1,
+      "keys": [
+        { "id": "6454ce5756c2a9b9", "ed25519": "ygNLXTR12cnQwXL89EteyA3Z+KDjdHr1rb2kpdiFlLo=", "role": "publisher" }
+      ]
+    }
+  }
+}

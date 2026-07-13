@@ -1,0 +1,10 @@
+{
+  "hey_sig": 1,
+  "signatures": [
+    {
+      "key_id": "6454ce5756c2a9b9",
+      "alg": "ed25519",
+      "sig": "/JAt30FpsdJWGF3TJjaw8VaQgcTM/pxtZhaRJO3hERUv0IwLiUVpr4GZoPqtqMzc6DUjxDOEgFsrbECjL+spAw=="
+    }
+  ]
+}

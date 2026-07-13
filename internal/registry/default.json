@@ -30,6 +30,10 @@
     "heypkv": {
       "manifest_url": "https://cdn.heypkv.ai/hey/{id}/{channel}.json",
       "default_channel": "stable"
+    },
+    "kitsy": {
+      "manifest_url": "https://cdn.kitsy.ai/hey/{id}/{channel}.json",
+      "default_channel": "stable"
     }
   }
 }
