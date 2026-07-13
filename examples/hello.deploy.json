@@ -1,0 +1,25 @@
+{
+  "hey_deploy": 1,
+  "id": "hello",
+  "name": "hey deploy demo",
+  "version": "0.1.0",
+  "channel": "stable",
+  "artifacts": [
+    {
+      "platform": "macos",
+      "arch": "universal",
+      "kind": "binary",
+      "url": "https://raw.githubusercontent.com/kitsyai/hey/main/examples/hello.sh",
+      "sha256": "a423401ba13b2d37d329775750f6a2ac0f005412cff35b5f6cf263a86cee97fa",
+      "interface": "window"
+    },
+    {
+      "platform": "linux",
+      "arch": "universal",
+      "kind": "binary",
+      "url": "https://raw.githubusercontent.com/kitsyai/hey/main/examples/hello.sh",
+      "sha256": "a423401ba13b2d37d329775750f6a2ac0f005412cff35b5f6cf263a86cee97fa",
+      "interface": "window"
+    }
+  ]
+}
