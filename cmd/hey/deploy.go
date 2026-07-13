@@ -283,6 +283,11 @@ func installDeployRef(ref deploy.Ref, o deployOpts) error {
 	if err != nil {
 		return err
 	}
+	if isManagedKind(art.Kind) {
+		if err := recordBundle(m, ref, o); err != nil {
+			return err
+		}
+	}
 	switch art.Kind {
 	case deploy.KindLink:
 		fmt.Printf("%s %s: opened %s\n", m.ID, m.Version, art.URL)
@@ -301,6 +306,9 @@ func runDeployRef(ref deploy.Ref, appArgs []string, o deployOpts) error {
 	if err != nil {
 		return err
 	}
+	if bundleDisabled(m.ID) {
+		return fmt.Errorf("%s is disabled — run `hey enable %s` to use it again", m.ID, m.ID)
+	}
 	art, err := selectForInstall(m)
 	if err != nil {
 		return err
@@ -315,6 +323,11 @@ func runDeployRef(ref deploy.Ref, appArgs []string, o deployOpts) error {
 	execPath, err := materialize(m, art, dir, reuse)
 	if err != nil {
 		return err
+	}
+	if isManagedKind(art.Kind) && !o.temp {
+		if err := recordBundle(m, ref, o); err != nil {
+			return err
+		}
 	}
 	if execPath == "" {
 		return nil // installer/link: nothing for hey to launch

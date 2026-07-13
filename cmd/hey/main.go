@@ -16,8 +16,11 @@ Usage:
   hey <ref>[@version] [args...]      run an app (fetched on demand)
   hey run <ref> [args...]            explicit run form
   hey install <ref>                  fetch + verify without running
-  hey update [<app>]                 re-resolve latest and fetch if newer
+  hey update [<app>|<id>]            update apps and bundles to the latest
   hey ls                             list installed apps and bundles
+  hey enable | disable <id>          pause/resume an installed bundle
+  hey remove <id>                    delete an installed app or bundle
+  hey self update                    update hey itself
   hey ps                             list running UI apps and services
   hey stop <app>                     stop a running UI app
   hey svc <up|ls|stop|start|logs|conn|rm>  manage local services
@@ -94,6 +97,14 @@ func main() {
 		err = cmdSign(args[1:])
 	case "verify":
 		err = cmdVerify(args[1:])
+	case "enable":
+		err = cmdEnable(args[1:])
+	case "disable":
+		err = cmdDisable(args[1:])
+	case "remove", "rm":
+		err = cmdRemove(args[1:])
+	case "self":
+		err = cmdSelf(args[1:])
 	case "uninstall":
 		err = cmdUninstall(args[1:])
 	default:

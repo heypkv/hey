@@ -60,42 +60,61 @@ func cmdUpdate(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	if len(rest) == 1 {
+		// A single target: a deployed bundle first, else a github-release app.
+		id := rest[0]
+		if _, ok, _ := readMeta(id); ok {
+			return updateBundle(id)
+		}
+		return updateApp(registryOverride, id)
+	}
+	if len(rest) > 1 {
+		return fmt.Errorf("usage: hey update [<app>|<id>]")
+	}
+
+	// No target: update everything installed.
+	apps := installedApps()
+	bundles := installedBundles()
+	if len(apps) == 0 && len(bundles) == 0 {
+		fmt.Println("nothing installed yet — try `hey install <app>`")
+		return nil
+	}
+	for _, name := range apps {
+		if err := updateApp(registryOverride, name); err != nil {
+			fmt.Fprintf(os.Stderr, "hey: skip %s: %v\n", name, err)
+		}
+	}
+	for _, b := range bundles {
+		if err := updateBundle(b.ID); err != nil {
+			fmt.Fprintf(os.Stderr, "hey: skip %s: %v\n", b.ID, err)
+		}
+	}
+	return nil
+}
+
+// updateApp re-resolves and installs the latest version of a github-release app.
+func updateApp(registryOverride, name string) error {
 	reg, err := loadRegistry(registryOverride)
 	if err != nil {
 		return err
 	}
-
-	var names []string
-	if len(rest) == 1 {
-		names = []string{rest[0]}
-	} else if len(rest) == 0 {
-		names = installedApps()
-		if len(names) == 0 {
-			fmt.Println("nothing installed yet — try `hey install <app>`")
-			return nil
-		}
-	} else {
-		return fmt.Errorf("usage: hey update [<app>]")
+	app, err := lookupApp(reg, name)
+	if err != nil {
+		return err
 	}
-
-	for _, name := range names {
-		app, err := lookupApp(reg, name)
-		if err != nil {
-			return err
-		}
-		version, err := resolveVersion(name, app, "", true) // bypass resolve cache
-		if err != nil {
-			return err
-		}
-		if cur, ok := currentVersion(name); ok && cur == version {
-			fmt.Printf("%s %s is already the latest\n", name, version)
-			continue
-		}
-		if _, err := ensureInstalled(name, app, version); err != nil {
-			return err
-		}
-		fmt.Printf("%s updated to %s\n", name, version)
+	version, err := resolveVersion(name, app, "", true) // bypass resolve cache
+	if err != nil {
+		return err
 	}
+	if cur, ok := currentVersion(name); ok && cur == version {
+		fmt.Printf("%s %s is already the latest\n", name, version)
+		return nil
+	}
+	if _, err := ensureInstalled(name, app, version); err != nil {
+		return err
+	}
+	fmt.Printf("%s updated to %s\n", name, version)
 	return nil
 }
 
@@ -120,15 +139,17 @@ func cmdLs(args []string) error {
 			name, cur, joinStrings(versions, ", "), filepath.Join(binDir, name))
 	}
 	if len(deployed) > 0 {
-		appsDir, err := home.AppsDir()
-		if err != nil {
-			return err
-		}
-		fmt.Println("\ndeployed bundles (hey.deploy.v1):")
+		fmt.Println("\ndeployed bundles:")
 		for _, id := range deployed {
 			versions := deployedVersions(id)
-			fmt.Printf("%-12s versions [%s]  %s\n",
-				id, joinStrings(versions, ", "), filepath.Join(appsDir, id))
+			state, src := "", ""
+			if m, ok, _ := readMeta(id); ok {
+				if !m.Enabled {
+					state = "  [disabled]"
+				}
+				src = "  " + m.source()
+			}
+			fmt.Printf("%-12s [%s]%s%s\n", id, joinStrings(versions, ", "), state, src)
 		}
 	}
 	return nil

@@ -45,16 +45,21 @@ try {
 
     Expand-Archive (Join-Path $tmp $asset) -DestinationPath $tmp -Force
 
+    # HEY_SYSTEM=1 installs machine-wide under Program Files (run from an
+    # elevated shell); default is per-user under %LOCALAPPDATA%.
+    $system = $env:HEY_SYSTEM -eq '1'
+    $scope  = if ($system) { 'Machine' } else { 'User' }
     $dest = if ($env:HEY_INSTALL_DIR) { $env:HEY_INSTALL_DIR }
+            elseif ($system) { Join-Path $env:ProgramFiles 'hey' }
             else { Join-Path $env:LOCALAPPDATA "Programs\hey" }
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     Copy-Item (Join-Path $tmp "hey.exe") -Destination (Join-Path $dest "hey.exe") -Force
 
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if (($userPath -split ";") -notcontains $dest) {
-        [Environment]::SetEnvironmentVariable("Path", "$userPath;$dest", "User")
+    $curPath = [Environment]::GetEnvironmentVariable("Path", $scope)
+    if (($curPath -split ";") -notcontains $dest) {
+        [Environment]::SetEnvironmentVariable("Path", "$curPath;$dest", $scope)
         $env:Path += ";$dest"
-        Write-Host "hey installer: added $dest to your user PATH (new terminals pick it up)"
+        Write-Host "hey installer: added $dest to your $scope PATH (new terminals pick it up)"
     }
 
     Write-Host "hey $ver installed to $(Join-Path $dest 'hey.exe')"

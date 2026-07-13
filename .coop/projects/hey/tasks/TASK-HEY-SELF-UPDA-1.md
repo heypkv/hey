@@ -3,7 +3,7 @@ id: TASK-HEY-SELF-UPDA-1
 short_id: e8c753adb157
 title: hey self update
 type: feature
-status: todo
+status: done
 created: 2026-07-13
 updated: 2026-07-13
 aliases: []

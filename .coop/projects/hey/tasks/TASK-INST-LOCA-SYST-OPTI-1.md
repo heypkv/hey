@@ -3,7 +3,7 @@ id: TASK-INST-LOCA-SYST-OPTI-1
 short_id: 3f0b27deae49
 title: "Install location: --system option + least-privilege runtime elevation"
 type: feature
-status: todo
+status: done
 created: 2026-07-13
 updated: 2026-07-13
 aliases: []

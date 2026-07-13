@@ -67,16 +67,28 @@ fi
 
 tar -xzf "$tmp/$asset" -C "$tmp" hey
 
+# --system (or HEY_SYSTEM=1) forces a system-wide install, elevating with sudo
+# when needed. Default is per-user (no sudo).
+system=${HEY_SYSTEM:-0}
+for a in "$@"; do [ "$a" = "--system" ] && system=1; done
+
 dir=${HEY_INSTALL_DIR:-}
 if [ -z "$dir" ]; then
-  if [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
+  if [ "$system" = "1" ]; then
+    dir=/usr/local/bin
+  elif [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
     dir=/usr/local/bin
   else
     dir="$HOME/.local/bin"
   fi
 fi
-mkdir -p "$dir"
-install -m 0755 "$tmp/hey" "$dir/hey"
+
+if mkdir -p "$dir" 2>/dev/null && [ -w "$dir" ]; then
+  install -m 0755 "$tmp/hey" "$dir/hey"
+else
+  echo "hey installer: $dir needs elevation — using sudo"
+  sudo mkdir -p "$dir" && sudo install -m 0755 "$tmp/hey" "$dir/hey"
+fi
 
 echo "hey $ver installed to $dir/hey"
 case ":$PATH:" in
