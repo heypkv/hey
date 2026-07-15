@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	vault  = "hey"
-	rcFile = ".cnosrc.yml"
+	vault = "hey"
+	// cnosDir is the project marker cnos writes on `cnos init`.
+	cnosDir = ".cnos"
 )
 
 // PassphraseEnv is the env var cnos reads for keeper's vault passphrase; it is
@@ -55,22 +56,43 @@ func cnosCmd(args ...string) (*exec.Cmd, error) {
 	return c, nil
 }
 
-// ensureProject scaffolds keeper's cnos project + local vault once. cnos
-// prompts for (or keychain-resolves, or env-reads) the vault passphrase.
+// ensureProject scaffolds keeper's cnos project and local vault. It runs
+// `cnos init` only when the project is absent, then ensures the vault exists.
 func ensureProject() error {
 	r, err := root()
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(r, rcFile)); err == nil {
-		return nil
+	if _, err := os.Stat(filepath.Join(r, cnosDir)); os.IsNotExist(err) {
+		if err := runInherit("cnos init", func() (*exec.Cmd, error) { return cnosCmd("init") }); err != nil {
+			return err
+		}
 	}
-	if err := runInherit("cnos init", func() (*exec.Cmd, error) { return cnosCmd("init") }); err != nil {
+	return ensureVault()
+}
+
+// ensureVault creates keeper's local vault, idempotently — an already-existing
+// vault is fine. cnos needs a passphrase to secure a NEW vault; because the
+// interactive prompt is unreliable when cnos is spawned by hey, keeper relies on
+// CNOS_SECRET_PASSPHRASE_HEY (or an OS-keychain entry) and, when neither is
+// present, surfaces cnos's own hint instead of a bare "exit status 1".
+func ensureVault() error {
+	c, err := cnosCmd("vault", "create", vault, "--provider", "local")
+	if err != nil {
 		return err
 	}
-	return runInherit("cnos vault create", func() (*exec.Cmd, error) {
-		return cnosCmd("vault", "create", vault, "--provider", "local")
-	})
+	out, err := c.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(strings.ToLower(string(out)), "already exists") {
+		return nil // vault is already set up — nothing to do
+	}
+	return fmt.Errorf("could not create keeper's secret vault:\n%s\n\n"+
+		"hey needs a passphrase to secure the vault. Set one and retry:\n"+
+		"  export CNOS_SECRET_PASSPHRASE_HEY='<a-strong-passphrase>'\n"+
+		"(keep it exported so `hey buddy install` can read secrets back)",
+		strings.TrimSpace(string(out)))
 }
 
 func runInherit(what string, build func() (*exec.Cmd, error)) error {
