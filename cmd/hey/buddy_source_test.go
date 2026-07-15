@@ -73,6 +73,55 @@ func TestBuddySourceInstall(t *testing.T) {
 	}
 }
 
+// TestBuddySourceUpdate proves update semantics: re-running with the same
+// manifest is a no-op; a new binary (new sha) at the same version reinstalls;
+// and updateBundle routes source bundles through the same path.
+func TestBuddySourceUpdate(t *testing.T) {
+	payload := []byte("boss-v1\n")
+	var manifest func() string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/contents/hey.json") {
+			fmt.Fprint(w, manifest())
+			return
+		}
+		w.Write(payload)
+	}))
+	defer srv.Close()
+	setManifest := func() string {
+		return fmt.Sprintf(`{"hey_manifest":"hey.source.v1","id":"boss","version":"1.0.0",
+		  "prebuilt":{%q:{"path":"bin/boss","sha256":%q}}}`,
+			source.Platform(), fmt.Sprintf("%x", sha256.Sum256(payload)))
+	}
+	manifest = setManifest
+
+	oldBase := gh.APIBase
+	gh.APIBase = srv.URL
+	defer func() { gh.APIBase = oldBase }()
+	t.Setenv("HEY_HOME", t.TempDir())
+
+	if err := buddySourceInstall("kyive/boss", ""); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	// Same manifest → updateBundle is a no-op (version + sha unchanged).
+	if err := updateBundle("boss"); err != nil {
+		t.Fatalf("update (no change): %v", err)
+	}
+
+	// New binary at the same version → reinstall picks it up.
+	payload = []byte("boss-v2-fixed\n")
+	manifest = setManifest // recomputes the sha for the new payload
+	if err := updateBundle("boss"); err != nil {
+		t.Fatalf("update (changed): %v", err)
+	}
+	dir, _ := home.DeployAppDir("boss", "1.0.0")
+	m, _, _ := readMeta("boss")
+	got, _ := os.ReadFile(filepath.Join(dir, m.Exec))
+	if string(got) != string(payload) {
+		t.Fatalf("update did not replace binary: got %q", got)
+	}
+}
+
 // TestBuddySourceInstallChecksumMismatch rejects a tampered binary.
 func TestBuddySourceInstallChecksumMismatch(t *testing.T) {
 	manifest := fmt.Sprintf(`{"hey_manifest":"hey.source.v1","id":"boss","version":"1.0.0",

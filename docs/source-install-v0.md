@@ -54,3 +54,23 @@ hey runner run boss <args> # equivalent
   the prebuilt is the intended path.)
 
 `{exe}` expands to `.exe` on Windows and empty elsewhere.
+
+## Update
+
+```
+hey update boss        # or `hey update` for everything installed
+```
+
+`hey update <id>` re-fetches the repo's `hey.json` and reinstalls when the
+platform binary has changed. A change is detected **either** way:
+
+- **bump `version`** in `hey.json` (and, by convention, drop the new binaries
+  under `releases/<new-version>/`) — the standard path; or
+- **rebuild + push the binary at the same version** (its `sha256` changes) — a
+  dev hotfix; hey compares the on-disk binary's hash to the manifest's and
+  reinstalls if they differ.
+
+If neither the version nor the binary changed, update is a no-op
+(`boss is already up to date`). The PATH shim always points through
+`hey runner run <id>`, which resolves the current installed version, so no shim
+rewrite is needed after an update.

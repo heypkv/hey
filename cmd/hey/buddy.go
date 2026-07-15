@@ -159,6 +159,15 @@ func buddySourceInstall(repo, cred string) error {
 			m.ID, source.Platform(), strings.Join(m.Platforms(), ", "))
 	}
 
+	// Already at this version with the exact same binary? Skip the download.
+	// A rebuilt binary at the same version (new sha) still updates — so a
+	// producer can either bump the manifest version or just push a new binary.
+	if existing, ok, _ := readMeta(m.ID); ok && existing.Kind == "source" &&
+		existing.Current == m.Version && installedMatchesSHA(existing, m.Version, pb.SHA256) {
+		fmt.Printf("%s is already up to date (%s)\n", m.ID, m.Version)
+		return nil
+	}
+
 	fmt.Fprintf(os.Stderr, "hey: fetching %s (%s)\n", pb.Path, source.Platform())
 	bin, err := gh.FetchContent(repo, pb.Path, "", token)
 	if err != nil {
@@ -207,6 +216,24 @@ func exeExt() string {
 		return ".exe"
 	}
 	return ""
+}
+
+// installedMatchesSHA reports whether the on-disk installed executable matches
+// wantSHA. With no expected sha we can't confirm, so we report false (reinstall)
+// rather than risk skipping a real change.
+func installedMatchesSHA(meta bundleMeta, version, wantSHA string) bool {
+	if wantSHA == "" {
+		return false
+	}
+	dir, err := home.DeployAppDir(meta.ID, version)
+	if err != nil {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(dir, meta.Exec))
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(fmt.Sprintf("%x", sha256.Sum256(data)), wantSHA)
 }
 
 // buddyClone does an authenticated git clone, and — only when --build is given

@@ -180,6 +180,12 @@ func updateBundle(id string) error {
 	if !ok {
 		return fmt.Errorf("no installed bundle %q", id)
 	}
+	// A source bundle re-fetches its repo's hey.json and reinstalls if the
+	// manifest version or the binary changed (buddySourceInstall reports the
+	// outcome, including "already up to date").
+	if m.Kind == "source" {
+		return buddySourceInstall(m.Repo, m.Cred)
+	}
 	prev := m.Current
 	o := deployOpts{channel: m.Channel, allowUntrusted: m.Untrusted, timeout: 30 * time.Second}
 	if err := installDeployRef(m.ref(), o); err != nil {
