@@ -55,16 +55,53 @@ func removeShim(id string) {
 // authenticated with a named credential resolved from keeper (--cred <name>).
 func cmdBuddy(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: hey buddy <install|clone> ...")
+		return fmt.Errorf("usage: hey buddy <install|update|clone> ...")
 	}
 	switch args[0] {
 	case "install":
 		return buddyInstall(args[1:])
+	case "update":
+		return buddyUpdate(args[1:])
 	case "clone":
 		return buddyClone(args[1:])
 	default:
-		return fmt.Errorf("unknown buddy subcommand %q (use install|clone)", args[0])
+		return fmt.Errorf("unknown buddy subcommand %q (use install|update|clone)", args[0])
 	}
+}
+
+// buddyUpdate refreshes buddy-installed (source) bundles to whatever their
+// repo's hey.json now points to. With an id it updates that one; with no id it
+// updates every source bundle. `hey update <id>` reaches the same code, so both
+// spellings work.
+func buddyUpdate(args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("usage: hey buddy update [<id>]")
+	}
+	if len(args) == 1 {
+		id := args[0]
+		m, ok, err := readMeta(id)
+		if err != nil {
+			return err
+		}
+		if !ok || m.Kind != "source" {
+			return fmt.Errorf("%q is not a buddy-installed tool — see `hey ls`", id)
+		}
+		return buddySourceInstall(m.Repo, m.Cred)
+	}
+	updated := false
+	for _, b := range installedBundles() {
+		if b.Kind != "source" {
+			continue
+		}
+		updated = true
+		if err := buddySourceInstall(b.Repo, b.Cred); err != nil {
+			fmt.Fprintf(os.Stderr, "hey: skip %s: %v\n", b.ID, err)
+		}
+	}
+	if !updated {
+		fmt.Println("no buddy-installed tools yet — try `hey buddy install <owner/repo>`")
+	}
+	return nil
 }
 
 // buddyInstall fetches + installs a deployed bundle (@scope/id or an https

@@ -103,9 +103,12 @@ func TestBuddySourceUpdate(t *testing.T) {
 		t.Fatalf("install: %v", err)
 	}
 
-	// Same manifest → updateBundle is a no-op (version + sha unchanged).
+	// Same manifest → both update spellings are a no-op (version + sha unchanged).
 	if err := updateBundle("boss"); err != nil {
 		t.Fatalf("update (no change): %v", err)
+	}
+	if err := buddyUpdate([]string{"boss"}); err != nil {
+		t.Fatalf("buddy update (no change): %v", err)
 	}
 
 	// New binary at the same version → reinstall picks it up.

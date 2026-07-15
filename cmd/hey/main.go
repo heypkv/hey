@@ -30,6 +30,7 @@ Usage:
   hey plan <list|show <intent>>      browse/inspect plans
   hey keeper <auth|ls|rm>            store named credentials (via cnos)
   hey buddy install <ref> [--cred n] fetch+install a bundle (private via keeper)
+  hey buddy update [<id>]            update buddy-installed tools to latest
   hey buddy clone <repo> [--cred n]  authenticated git clone [--build "<cmd>"]
   hey open <ref>                     open a link artifact (e.g. TestFlight)
   hey which <app>                    print path of the installed binary

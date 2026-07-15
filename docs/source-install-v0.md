@@ -58,7 +58,9 @@ hey runner run boss <args> # equivalent
 ## Update
 
 ```
-hey update boss        # or `hey update` for everything installed
+hey buddy update boss  # buddy owns install + update for source bundles
+hey buddy update       # update every buddy-installed tool
+hey update boss        # equivalent (the general updater routes here too)
 ```
 
 `hey update <id>` re-fetches the repo's `hey.json` and reinstalls when the
@@ -74,3 +76,27 @@ If neither the version nor the binary changed, update is a no-op
 (`boss is already up to date`). The PATH shim always points through
 `hey runner run <id>`, which resolves the current installed version, so no shim
 rewrite is needed after an update.
+
+## Versions
+
+`hey.json` names exactly one version — the **top**. install and update both
+converge to it: `hey buddy install <owner/repo>` fetches whatever `version` +
+`prebuilt` the manifest currently declares, and `hey buddy update` re-reads the
+manifest and moves to its top. There is no floating "latest" for hey to guess —
+the repo's `hey.json` *is* the pointer, and moving it (alpha.1 → alpha.2 →
+alpha.3) is how a producer publishes.
+
+What happens to older versions:
+
+- **In the repo:** keep each build under its own `releases/<version>/` for
+  provenance and rollback. The manifest only points at one of them at a time.
+- **On the machine:** each installed version lives in its own
+  `~/.hey/apps/<id>/<version>/`; `meta.json` records which one is `current`.
+  Updating to alpha.2 leaves alpha.1's directory in place (cheap rollback) and
+  just repoints `current`. `hey remove <id>` clears them.
+
+**Rollback** is just moving the pointer back: set `hey.json`'s `version` (and
+shas) to the older build and push — `hey buddy update` on each machine steps
+back to it. (Installing an arbitrary pinned version, e.g.
+`hey buddy install kyive/boss@0.1.0-alpha.1`, would need the manifest to list
+multiple versions or a per-version manifest — not in v0.)
