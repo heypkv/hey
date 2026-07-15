@@ -96,7 +96,10 @@ by the integration tests.
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Developed by
+HEYPKV INNOVATIONS PRIVATE LIMITED. On contributions, see
+[CONTRIBUTING.md](CONTRIBUTING.md) (the project is not accepting external pull
+requests at this time).
 
 hey is the open client for the kitsy.ai ecosystem. It's a deliberately thin
 runtime: it resolves a manifest, verifies bytes, and runs a native binary. It
