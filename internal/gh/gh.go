@@ -144,6 +144,45 @@ func DownloadURL(repo, tag, asset string) string {
 	return fmt.Sprintf("%s/%s/releases/download/%s/%s", DownloadBase, repo, tag, asset)
 }
 
+// maxContentBytes caps a single fetched repo file (a manifest or a checked-in
+// binary). boss.exe is ~12 MB; 200 MB leaves generous headroom.
+const maxContentBytes = 200 << 20
+
+// FetchContent returns the raw bytes of a file at path in repo, via the GitHub
+// contents API with the raw media type — the reliable way to read a file from a
+// PRIVATE repo using a token (buddy's source install: manifest + checked-in
+// binary, no clone of the whole monorepo). ref is a branch/tag/sha, or "" for
+// the default branch. token authenticates private repos.
+func FetchContent(repo, path, ref, token string) ([]byte, error) {
+	url := fmt.Sprintf("%s/repos/%s/contents/%s", APIBase, repo, path)
+	if ref != "" {
+		url += "?ref=" + ref
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	// raw media type → the file bytes themselves (not base64-in-JSON), and it
+	// serves files well past the 1 MB JSON-encoding limit.
+	req.Header.Set("Accept", "application/vnd.github.raw")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	client := &http.Client{Timeout: 10 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %s:%s: %w", repo, path, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%s not found in %s (private? pass --cred, and check the path/branch)", path, repo)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch %s:%s: HTTP %d", repo, path, resp.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, maxContentBytes))
+}
+
 // --- resolve cache ---
 
 type resolveCache struct {

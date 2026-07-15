@@ -16,10 +16,13 @@ import (
 // ~/.hey/apps/<id>/meta.json.
 type bundleMeta struct {
 	ID        string    `json:"id"`
-	Kind      string    `json:"kind"` // "scope" or "url"
+	Kind      string    `json:"kind"` // "scope", "url", or "source"
 	Scope     string    `json:"scope,omitempty"`
 	Channel   string    `json:"channel,omitempty"`
 	URL       string    `json:"url,omitempty"`
+	Repo      string    `json:"repo,omitempty"` // source installs: owner/repo
+	Cred      string    `json:"cred,omitempty"` // source installs: keeper credential name
+	Exec      string    `json:"exec,omitempty"` // basename of the installed executable (source installs)
 	Current   string    `json:"current"`
 	Enabled   bool      `json:"enabled"`
 	Untrusted bool      `json:"untrusted,omitempty"` // installed with --allow-untrusted
@@ -161,6 +164,7 @@ func cmdRemove(args []string) error {
 	if !removed {
 		return fmt.Errorf("%q is not installed", name)
 	}
+	removeShim(name) // best-effort: drop the PATH shim a source install created
 	fmt.Printf("removed %s\n", name)
 	return nil
 }

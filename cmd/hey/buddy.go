@@ -1,16 +1,53 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/kitsyai/hey/internal/deploy"
+	"github.com/kitsyai/hey/internal/gh"
+	"github.com/kitsyai/hey/internal/home"
 	"github.com/kitsyai/hey/internal/keeper"
+	"github.com/kitsyai/hey/internal/source"
 )
+
+// installShim writes a launcher next to the hey executable (that directory is
+// on PATH from the installer) so a source-installed tool runs directly as
+// `<id> <args>` — it delegates to `hey runner run <id>`, which resolves the
+// current installed version, so the shim never goes stale across updates.
+func installShim(id string) error {
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(self)
+	if runtime.GOOS == "windows" {
+		shim := filepath.Join(dir, id+".cmd")
+		content := "@echo off\r\n\"" + self + "\" runner run " + id + " %*\r\n"
+		return os.WriteFile(shim, []byte(content), 0o755)
+	}
+	shim := filepath.Join(dir, id)
+	content := "#!/bin/sh\nexec \"" + self + "\" runner run " + id + " \"$@\"\n"
+	return os.WriteFile(shim, []byte(content), 0o755)
+}
+
+// removeShim deletes a tool's PATH shim (best-effort, used by `hey remove`).
+func removeShim(id string) {
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	dir := filepath.Dir(self)
+	for _, name := range []string{id, id + ".cmd"} {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+}
 
 // cmdBuddy is the errand module: fetch/install native bundles and clone source.
 // buddy never builds by default and never knows a tool's internals — it moves
@@ -59,7 +96,12 @@ func buddyInstall(args []string) error {
 		}
 	}
 	if ref == "" {
-		return fmt.Errorf("usage: hey buddy install <@scope/id|https-manifest-url> [--cred <name>]")
+		return fmt.Errorf("usage: hey buddy install <owner/repo|@scope/id|https-manifest-url> [--cred <name>]")
+	}
+	// An owner/repo ref (e.g. kyive/boss) is a source install: read the repo's
+	// checked-in hey.json and fetch the prebuilt binary for this platform.
+	if isRepoRef(ref) {
+		return buddySourceInstall(ref, cred)
 	}
 	if cred != "" {
 		tok, err := keeper.Get(cred)
@@ -73,9 +115,98 @@ func buddyInstall(args []string) error {
 		return err
 	}
 	if parsed.Kind == deploy.RefAppName {
-		return fmt.Errorf("buddy install takes a deploy ref (@scope/id or an https manifest URL), not the app name %q", ref)
+		return fmt.Errorf("buddy install takes a repo (owner/repo), a deploy ref (@scope/id), or an https manifest URL, not %q", ref)
 	}
 	return installDeployRef(parsed, o)
+}
+
+// isRepoRef reports whether ref is a bare owner/repo (not a URL, not @scoped).
+func isRepoRef(ref string) bool {
+	if strings.Contains(ref, "://") || strings.HasPrefix(ref, "@") {
+		return false
+	}
+	parts := strings.Split(ref, "/")
+	return len(parts) == 2 && parts[0] != "" && parts[1] != ""
+}
+
+// buddySourceInstall installs a tool from its own repo per an in-repo
+// hey.source.v1 manifest: fetch hey.json (authenticated via keeper), pick the
+// prebuilt binary for this platform, verify it, install it, record the bundle,
+// and drop a PATH shim so the tool runs as `<id> <args>` and `hey runner run
+// <id>`. It fetches only the manifest and the one binary — no monorepo clone.
+func buddySourceInstall(repo, cred string) error {
+	var token string
+	if cred != "" {
+		tok, err := keeper.Get(cred)
+		if err != nil {
+			return err
+		}
+		token = tok
+	}
+
+	fmt.Fprintf(os.Stderr, "hey: reading %s hey.json\n", repo)
+	data, err := gh.FetchContent(repo, "hey.json", "", token)
+	if err != nil {
+		return err
+	}
+	m, err := source.Parse(data)
+	if err != nil {
+		return err
+	}
+	pb, ok := m.PrebuiltFor()
+	if !ok {
+		return fmt.Errorf("%s has no prebuilt binary for %s (offers: %s); build-from-source is not yet supported by buddy v0",
+			m.ID, source.Platform(), strings.Join(m.Platforms(), ", "))
+	}
+
+	fmt.Fprintf(os.Stderr, "hey: fetching %s (%s)\n", pb.Path, source.Platform())
+	bin, err := gh.FetchContent(repo, pb.Path, "", token)
+	if err != nil {
+		return err
+	}
+	if pb.SHA256 != "" {
+		got := fmt.Sprintf("%x", sha256.Sum256(bin))
+		if !strings.EqualFold(got, pb.SHA256) {
+			return fmt.Errorf("checksum mismatch for %s:\n  want %s\n  got  %s", pb.Path, pb.SHA256, got)
+		}
+	}
+
+	dir, err := home.DeployAppDir(m.ID, m.Version)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	execName := m.ID + exeExt()
+	dest := filepath.Join(dir, execName)
+	if err := os.WriteFile(dest, bin, 0o755); err != nil {
+		return err
+	}
+
+	meta := bundleMeta{
+		ID: m.ID, Kind: "source", Repo: repo, Cred: cred,
+		Exec: execName, Current: m.Version, Enabled: true, Updated: time.Now(),
+	}
+	if existing, ok, _ := readMeta(m.ID); ok {
+		meta.Enabled = existing.Enabled
+	}
+	if err := writeMeta(meta); err != nil {
+		return err
+	}
+	if err := installShim(m.ID); err != nil {
+		fmt.Fprintf(os.Stderr, "hey: warning — could not create the `%s` shim (%v); use `hey runner run %s`\n", m.ID, err, m.ID)
+	}
+	fmt.Printf("%s %s -> %s\n", m.ID, m.Version, dest)
+	fmt.Printf("run it with `%s` or `hey runner run %s`\n", m.ID, m.ID)
+	return nil
+}
+
+func exeExt() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
 }
 
 // buddyClone does an authenticated git clone, and — only when --build is given

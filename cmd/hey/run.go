@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -88,6 +89,20 @@ appName:
 
 	name, pinned := splitAppRef(args[i])
 	appArgs := args[i+1:]
+
+	// A source-installed bundle (buddy install owner/repo) runs its checked-in
+	// executable directly — no registry, no re-fetch. This is what makes both
+	// `boss …` (via the PATH shim) and `hey runner run boss` work.
+	if meta, ok, _ := readMeta(name); ok && meta.Kind == "source" && meta.Exec != "" {
+		if bundleDisabled(name) {
+			return fmt.Errorf("%s is disabled — run `hey enable %s` to use it again", name, name)
+		}
+		dir, err := home.DeployAppDir(meta.ID, meta.Current)
+		if err != nil {
+			return err
+		}
+		return runPassthrough(filepath.Join(dir, meta.Exec), appArgs)
+	}
 
 	reg, err := loadRegistry(o.registryOverride)
 	if err != nil {
