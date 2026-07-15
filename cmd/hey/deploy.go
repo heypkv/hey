@@ -27,6 +27,7 @@ type deployOpts struct {
 	noBrowser        bool
 	allowUntrusted   bool
 	timeout          time.Duration
+	token            string // keeper-resolved auth for private fetches (buddy)
 }
 
 // resolveManifest turns a classified deploy ref into a validated manifest,
@@ -51,7 +52,7 @@ func resolveManifest(ref deploy.Ref, o deployOpts) (*deploy.Manifest, error) {
 		return nil, fmt.Errorf("internal: resolveManifest called with a non-manifest ref")
 	}
 	fmt.Fprintf(os.Stderr, "hey: resolving manifest %s\n", url)
-	data, err := deploy.FetchBytes(url)
+	data, err := deploy.FetchBytes(url, o.token)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func verifyTrust(scope, url string, manifestBytes []byte, o deployOpts) error {
 			return err
 		}
 		if signed {
-			sigBytes, ferr := deploy.FetchBytes(url + ".heysig")
+			sigBytes, ferr := deploy.FetchBytes(url+".heysig", o.token)
 			if ferr != nil {
 				return fmt.Errorf("@%s pins signing keys but no signature was found at %s.heysig: %w", scope, url, ferr)
 			}
@@ -137,9 +138,9 @@ func installDir(m *deploy.Manifest, o deployOpts) (dir string, cleanup func(), r
 
 // downloadVerify downloads art into dir (a temp file on the same volume) and
 // enforces its manifest sha256. It returns the temp path; the caller removes it.
-func downloadVerify(art deploy.Artifact, dir string) (string, error) {
+func downloadVerify(art deploy.Artifact, dir, token string) (string, error) {
 	fmt.Fprintf(os.Stderr, "hey: fetching %s\n", art.URL)
-	tmp, got, err := fetch.Download(art.URL, dir)
+	tmp, got, err := fetch.Download(art.URL, dir, token)
 	if err != nil {
 		return "", err
 	}
@@ -153,7 +154,7 @@ func downloadVerify(art deploy.Artifact, dir string) (string, error) {
 // materialize installs art into dir per its kind and returns the executable
 // path to launch (empty for kinds hey does not launch itself: installer/link).
 // For a reused cache it only recomputes the exec path.
-func materialize(m *deploy.Manifest, art deploy.Artifact, dir string, reuse bool) (string, error) {
+func materialize(m *deploy.Manifest, art deploy.Artifact, dir string, reuse bool, token string) (string, error) {
 	switch art.Kind {
 	case deploy.KindArchive:
 		exec := filepath.Join(dir, filepath.FromSlash(art.Launch.Exec))
@@ -162,7 +163,7 @@ func materialize(m *deploy.Manifest, art deploy.Artifact, dir string, reuse bool
 				return exec, nil
 			}
 		}
-		tmp, err := downloadVerify(art, filepath.Dir(dir))
+		tmp, err := downloadVerify(art, filepath.Dir(dir), token)
 		if err != nil {
 			return "", err
 		}
@@ -183,7 +184,7 @@ func materialize(m *deploy.Manifest, art deploy.Artifact, dir string, reuse bool
 				return exec, nil
 			}
 		}
-		tmp, err := downloadVerify(art, dir)
+		tmp, err := downloadVerify(art, dir, token)
 		if err != nil {
 			return "", err
 		}
@@ -198,7 +199,7 @@ func materialize(m *deploy.Manifest, art deploy.Artifact, dir string, reuse bool
 
 	case deploy.KindInstaller:
 		installer := filepath.Join(dir, execFileName(art))
-		tmp, err := downloadVerify(art, dir)
+		tmp, err := downloadVerify(art, dir, token)
 		if err != nil {
 			return "", err
 		}
@@ -279,7 +280,7 @@ func installDeployRef(ref deploy.Ref, o deployOpts) error {
 		defer cleanup()
 		return fmt.Errorf("--temp only applies to `hey run`")
 	}
-	execPath, err := materialize(m, art, dir, reuse)
+	execPath, err := materialize(m, art, dir, reuse, o.token)
 	if err != nil {
 		return err
 	}
@@ -320,7 +321,7 @@ func runDeployRef(ref deploy.Ref, appArgs []string, o deployOpts) error {
 	if cleanup != nil {
 		defer cleanup()
 	}
-	execPath, err := materialize(m, art, dir, reuse)
+	execPath, err := materialize(m, art, dir, reuse, o.token)
 	if err != nil {
 		return err
 	}

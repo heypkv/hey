@@ -94,11 +94,23 @@ func Fetch(url string) (*Manifest, error) {
 // FetchBytes downloads the raw bytes at an https URL — a manifest, or its
 // detached ".heysig" signature. Signature verification runs over these exact
 // bytes, so callers verify before Parse.
-func FetchBytes(url string) ([]byte, error) {
+// An optional auth token (first non-empty) authenticates a private manifest or
+// signature fetch — buddy passes a keeper-resolved token here.
+func FetchBytes(url string, auth ...string) ([]byte, error) {
 	if !strings.HasPrefix(url, "https://") {
 		return nil, fmt.Errorf("URL must be https: %s", url)
 	}
-	resp, err := Client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %s: %w", url, err)
+	}
+	for _, a := range auth {
+		if a != "" {
+			req.Header.Set("Authorization", "Bearer "+a)
+			break
+		}
+	}
+	resp, err := Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %s: %w", url, err)
 	}

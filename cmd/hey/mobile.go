@@ -168,7 +168,7 @@ func mobilePush(args []string) error {
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
-	apk, err := downloadVerify(art, tmpDir)
+	apk, err := downloadVerify(art, tmpDir, "")
 	if err != nil {
 		return err
 	}

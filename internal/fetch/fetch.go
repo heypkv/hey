@@ -31,11 +31,31 @@ type SigSpec struct{}
 // long timeout for large artifacts.
 var Client = &http.Client{Timeout: 10 * time.Minute}
 
-func get(url string, cap int64) (io.ReadCloser, error) {
+// authHeader picks the first non-empty token from a variadic auth argument, so
+// existing callers pass nothing and buddy can pass a keeper-resolved token.
+func authHeader(auth []string) string {
+	for _, a := range auth {
+		if a != "" {
+			return a
+		}
+	}
+	return ""
+}
+
+func get(url string, cap int64, token string) (io.ReadCloser, error) {
 	if !strings.HasPrefix(url, "https://") {
 		return nil, fmt.Errorf("refusing non-https download: %s", url)
 	}
-	resp, err := Client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("download %s: %w", url, err)
+	}
+	if token != "" {
+		// Bearer for private GitHub release assets. Go's client drops this
+		// header on the cross-host redirect to the signed CDN URL.
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", url, err)
 	}
@@ -49,9 +69,10 @@ func get(url string, cap int64) (io.ReadCloser, error) {
 	}{io.LimitReader(resp.Body, cap), resp.Body}, nil
 }
 
-// Checksums fetches and returns the raw checksums file.
-func Checksums(url string) ([]byte, error) {
-	body, err := get(url, maxChecksumsBytes)
+// Checksums fetches and returns the raw checksums file. An optional auth token
+// authenticates private-artifact fetches (buddy).
+func Checksums(url string, auth ...string) ([]byte, error) {
+	body, err := get(url, maxChecksumsBytes, authHeader(auth))
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +96,8 @@ func ParseChecksums(data []byte) map[string]string {
 // Download streams url into a temp file inside dir (same volume as the final
 // destination so renames stay atomic) and returns the temp path and SHA-256.
 // The caller owns the temp file and must remove it on failure.
-func Download(url, dir string) (path, sha string, err error) {
-	body, err := get(url, maxArchiveBytes)
+func Download(url, dir string, auth ...string) (path, sha string, err error) {
+	body, err := get(url, maxArchiveBytes, authHeader(auth))
 	if err != nil {
 		return "", "", err
 	}

@@ -28,6 +28,8 @@ Usage:
   hey do <intent> [--param k=v]      run a plan (orchestrate tools for a task)
   hey plan <list|show <intent>>      browse/inspect plans
   hey keeper <auth|ls|rm>            store named credentials (via cnos)
+  hey buddy install <ref> [--cred n] fetch+install a bundle (private via keeper)
+  hey buddy clone <repo> [--cred n]  authenticated git clone [--build "<cmd>"]
   hey open <ref>                     open a link artifact (e.g. TestFlight)
   hey which <app>                    print path of the installed binary
   hey cache clean [<app>]            remove cached binaries and bundles
@@ -114,6 +116,8 @@ func main() {
 		err = cmdPlan(args[1:])
 	case "keeper":
 		err = cmdKeeper(args[1:])
+	case "buddy":
+		err = cmdBuddy(args[1:])
 	case "uninstall":
 		err = cmdUninstall(args[1:])
 	default:
